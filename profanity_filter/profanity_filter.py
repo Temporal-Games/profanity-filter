@@ -7,10 +7,8 @@ from math import floor
 from pathlib import Path
 from typing import Dict, Union, List, Tuple, Set, Collection, ContextManager, Optional
 
-import poetry_version
 import spacy
-import spacy.attrs
-import spacy.language
+import spacy.language as spacy_lang
 import spacy.tokens
 from cached_property import cached_property
 from more_itertools import substrings_indexes
@@ -79,11 +77,9 @@ with suppress(ImportError):
 AVAILABLE_ANALYSES: AnalysesTypes = frozenset(_available_analyses_list)
 
 
-APP_NAME = 'profanity-filter'
-__version__ = poetry_version.extract(source_file=__file__)
-
-
 class ProfanityFilter:
+    name = 'profanity_filter'
+
     def __init__(self,
                  languages: LanguagesAcceptable = tuple(DEFAULT_CONFIG.languages),
                  *,
@@ -97,10 +93,14 @@ class ProfanityFilter:
                  morphs: Optional[Morphs] = None,
                  nlps: Optional[Nlps] = None,
                  spells: Optional[Spells] = None,
+                 data_dir: Optional[Path] = None
                  ):
         # Path to data dir
-        self._BASE_DIR = Path(__file__).absolute().parent
-        self._DATA_DIR: Path = self._BASE_DIR / 'data'
+        if not data_dir:
+            self._BASE_DIR = Path(__file__).absolute().parent
+            self._DATA_DIR: Path = self._BASE_DIR / 'data'
+        else:
+            self._DATA_DIR: Path = data_dir
 
         self._MAX_MAX_DISTANCE = 3
 
@@ -212,11 +212,16 @@ class ProfanityFilter:
         """Returns True if input_text contains any profane words, False otherwise"""
         return self._censor(text=text, return_bool=True)
 
-    @cached_property
-    def spacy_component(self, language: Language = None) -> SpacyProfanityFilterComponent:
+    def spacy_component(self, language: Language = None) -> str:
         nlp = self._get_nlp(language)
         [language] = [language for language, nlp_ in self.nlps.items() if nlp_ == nlp]
-        return SpacyProfanityFilterComponent(profanity_filter=self, nlp=nlp, language=language)
+        component = SpacyProfanityFilterComponent(profanity_filter=self, nlp=nlp, language=language)
+
+        @spacy_lang.Language.factory(self.name)
+        def _custom_component(nlp, name):
+            return component
+
+        return self.name
 
     @property
     def analyses(self) -> AnalysesTypes:
@@ -344,7 +349,7 @@ class ProfanityFilter:
             for language in self.languages:
                 with suppress(OSError):
                     self._nlps[language] = spacy.load(language, disable=['parser', 'ner'])
-                    self._nlps[language].add_pipe(self.spacy_component, last=True)
+                    self._nlps[language].add_pipe(self.spacy_component(language), last=True)
             if not self._nlps:
                 raise ProfanityFilterError(f"Couldn't load Spacy model for any of languages: {self.languages_str}")
 
@@ -735,19 +740,6 @@ class ProfanityFilter:
             self._save_censored_word(censored_word)
         return censored_word
 
-    def _detect_languages(self, text: str) -> Languages:
-        fallback_language = self.languages[0]
-        fallback_result = OrderedSet([fallback_language])
-        if AnalysisType.MULTILINGUAL in self.analyses:
-            polyglot_output = polyglot.detect.Detector(text, quiet=True)
-            result = OrderedSet([language.code for language in polyglot_output.languages if language.code != 'un'])
-            if not result:
-                result = fallback_result
-        else:
-            result = fallback_result
-        result = result.intersection(self.languages)
-        return result
-
     @staticmethod
     def _merge_by_language(parts: TextSplittedByLanguage) -> TextSplittedByLanguage:
         result = []
@@ -766,11 +758,9 @@ class ProfanityFilter:
         return result
 
     def _split_by_language(self, text: str) -> TextSplittedByLanguage:
-        languages = self._detect_languages(text=text)
+        languages = OrderedSet(['en_core_web_sm'])
         tokens = re.split(r'(\W)', text)
-        if len(languages) == 0:
-            return [(None, text)]
-        elif len(languages) == 1 or len(tokens) <= 1:
+        if len(languages) == 1 or len(tokens) <= 1:
             # noinspection PyTypeChecker
             return [(languages[0], text)]
         else:
