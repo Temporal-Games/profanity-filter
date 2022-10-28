@@ -25,8 +25,6 @@ class Word(BaseModel):
 
 class AnalysisType(Enum):
     DEEP = 'deep'
-    MORPHOLOGICAL = 'morphological'
-    MULTILINGUAL = 'multilingual'
 
 
 Words = Dict[str, Word]
