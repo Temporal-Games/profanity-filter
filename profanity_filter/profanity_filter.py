@@ -12,7 +12,6 @@ import spacy.tokens
 from cached_property import cached_property
 from more_itertools import substrings_indexes
 from ordered_set import OrderedSet
-from redis import Redis
 
 from profanity_filter import spacy_utlis
 from profanity_filter.config import Config, DEFAULT_CONFIG
@@ -68,7 +67,6 @@ class ProfanityFilter:
                  languages: LanguagesAcceptable = tuple(DEFAULT_CONFIG.languages),
                  *,
                  analyses: AnalysesTypes = frozenset(DEFAULT_CONFIG.analyses),
-                 cache_redis_connection_url: Optional[str] = None,
                  censor_char: str = DEFAULT_CONFIG.censor_char,
                  censor_whole_words: bool = DEFAULT_CONFIG.censor_whole_words,
                  custom_profane_word_dictionaries: ProfaneWordDictionariesAcceptable = None,
@@ -91,8 +89,6 @@ class ProfanityFilter:
         # Set dummy values to satisfy the linter (they will be overwritten in `config`)
         self._analyses: AnalysesTypes = frozenset()
         self._cache_clearing_disabled: bool = False
-        self._cache_redis: Optional[Redis] = None
-        self._cache_redis_connection_url: Optional[str] = None
         self._censor_char: str = ''
         self._censor_whole_words: bool = False
         self._custom_profane_word_dictionaries: ProfaneWordDictionaries = {}
@@ -122,7 +118,6 @@ class ProfanityFilter:
             self.config(
                 languages=languages,
                 analyses=analyses,
-                cache_redis_connection_url=cache_redis_connection_url,
                 censor_char=censor_char,
                 censor_whole_words=censor_whole_words,
                 custom_profane_word_dictionaries=custom_profane_word_dictionaries,
@@ -139,7 +134,6 @@ class ProfanityFilter:
                languages: LanguagesAcceptable = tuple(DEFAULT_CONFIG.languages),
                *,
                analyses: AnalysesTypes = frozenset(DEFAULT_CONFIG.analyses),
-               cache_redis_connection_url: Optional[str] = DEFAULT_CONFIG.cache_redis_connection_url,
                censor_char: str = DEFAULT_CONFIG.censor_char,
                censor_whole_words: bool = DEFAULT_CONFIG.censor_whole_words,
                custom_profane_word_dictionaries: ProfaneWordDictionariesAcceptable = None,
@@ -150,7 +144,6 @@ class ProfanityFilter:
                spells: Optional[Spells] = None,
                ):
         self.analyses = analyses
-        self.cache_redis_connection_url = cache_redis_connection_url
         self.censor_char = censor_char
         self.censor_whole_words = censor_whole_words
         self.custom_profane_word_dictionaries = custom_profane_word_dictionaries
@@ -169,7 +162,6 @@ class ProfanityFilter:
         return cls(
             languages=config.languages,
             analyses=frozenset(config.analyses),
-            cache_redis_connection_url=config.cache_redis_connection_url,
             censor_char=config.censor_char,
             censor_whole_words=config.censor_whole_words,
             max_relative_distance=config.max_relative_distance,
@@ -203,16 +195,6 @@ class ProfanityFilter:
     def analyses(self, value: Collection[AnalysisType]) -> None:
         self._analyses = AVAILABLE_ANALYSES.intersection(value)
         self.clear_cache()
-
-    @property
-    def cache_redis_connection_url(self) -> Optional[str]:
-        return self._cache_redis_connection_url
-
-    @cache_redis_connection_url.setter
-    def cache_redis_connection_url(self, value: Optional[str]) -> None:
-        self._cache_redis_connection_url = value
-        if value is not None:
-            self._cache_redis = Redis.from_url(value)
 
     @property
     def censor_char(self) -> str:
@@ -359,8 +341,6 @@ class ProfanityFilter:
     def _clear_words_cache(self):
         self._censored_words = {}
         self._words_with_no_profanity_inside = set()
-        if self._cache_redis is not None:
-            self._cache_redis.flushdb()
 
     def _update_languages_str(self) -> None:
         if self._cache_clearing_disabled:
@@ -496,10 +476,7 @@ class ProfanityFilter:
             return False
 
     def _get_words_with_no_profanity_inside(self) -> Set[str]:
-        if self._cache_redis is None:
-            return self._words_with_no_profanity_inside
-        else:
-            return {word.decode('utf8') for word in self._cache_redis.smembers('_words_with_no_profanity_inside')}
+        return self._words_with_no_profanity_inside
 
     def _has_no_profanity(self, words: Collection[str]) -> bool:
         return any(word in word_with_no_profanity_inside
@@ -523,25 +500,10 @@ class ProfanityFilter:
         return any(word in profane_word_dictionary for profane_word_dictionary in profane_word_dictionaries)
 
     def _get_censored_word(self, word: spacy.tokens.Token) -> Optional[Word]:
-        if self._cache_redis is None:
-            return self._censored_words.get(word.text)
-        else:
-            d = self._cache_redis.hgetall(word.text)
-            if not d:
-                return None
-            uncensored, censored, original_profane_word = d[b'uncensored'], d[b'censored'], d[b'original_profane_word']
-            if not original_profane_word:
-                original_profane_word = None
-            return Word(uncensored=uncensored, censored=censored, original_profane_word=original_profane_word)
+        return self._censored_words.get(word.text)
 
     def _save_censored_word(self, word: Word) -> None:
-        if self._cache_redis is None:
-            self._censored_words[word.uncensored] = word
-        else:
-            d = dict(word)
-            if not word.original_profane_word:
-                d['original_profane_word'] = ''
-            self._cache_redis.hmset(word.uncensored, d)
+        self._censored_words[word.uncensored] = word
 
     def _censor_word_part(self, language: Language, word: spacy.tokens.Token) -> Tuple[Word, bool]:
         """
@@ -563,10 +525,7 @@ class ProfanityFilter:
         return Word(uncensored=word.text, censored=word.text), False
 
     def _save_word_with_no_profanity_inside(self, word: spacy.tokens.Token) -> None:
-        if self._cache_redis is None:
-            self._words_with_no_profanity_inside.add(word.text)
-        else:
-            self._cache_redis.sadd('_words_with_no_profanity_inside', word.text)
+        self._words_with_no_profanity_inside.add(word.text)
 
     def _censor_word(self, language: Language, word: spacy.tokens.Token) -> Word:
         """Returns censored word"""

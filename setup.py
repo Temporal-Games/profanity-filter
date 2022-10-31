@@ -12,7 +12,6 @@ install_requires = \
  'more-itertools>=8.0',
  'ordered-set-stubs>=0.1.3',
  'ordered-set>=3.0',
- 'redis>=3.2',
  'spacy>=3.0']
 
 
