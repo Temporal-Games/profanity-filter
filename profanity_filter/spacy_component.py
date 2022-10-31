@@ -1,5 +1,5 @@
 from contextlib import suppress
-from typing import Union, Optional, Generator, List
+from typing import Union, Optional, Generator, List, Any
 
 import spacy.language
 from more_itertools import partitions
@@ -66,7 +66,7 @@ class SpacyProfanityFilterComponent:
         # noinspection PyProtectedMember
         return any(token._.is_profane for token in tokens)
 
-    def _span_partitions(self, span: Span) -> Generator[List[Token], None, None]:
+    def _span_partitions(self, span: Span) -> Generator[List[Union[Token, Any]], None, None]:
         if len(span) == 1:
             return span[0]
         for partition in partitions(span):
