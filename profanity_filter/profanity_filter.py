@@ -175,7 +175,6 @@ class ProfanityFilter:
             max_relative_distance=config.max_relative_distance,
         )
 
-
     def censor(self, text: str) -> str:
         """Returns text with any profane words censored"""
         return self._censor(text=text)
@@ -184,10 +183,6 @@ class ProfanityFilter:
         """Returns censored word"""
         word = self._make_spacy_token(language=language, word=word)
         return self._censor_word(language=language, word=word)
-
-    def is_clean(self, text: str) -> bool:
-        """Returns True if text doesn't contain any profane words, False otherwise"""
-        return not self.is_profane(text=text)
 
     def spacy_component(self, language: Language = None) -> str:
         nlp = self._get_nlp(language)
@@ -440,7 +435,6 @@ class ProfanityFilter:
             word = word.text
         return len(word) * self.censor_char
 
-
     def _get_nlp(self, language: Language) -> spacy.language.Language:
         # noinspection PyTypeChecker
         languages = OrderedSet([language]) | self.languages
@@ -477,7 +471,8 @@ class ProfanityFilter:
         except UnicodeEncodeError:
             return OrderedSet()
 
-    def _normal_forms(self, language: Language, word: str) -> 'OrderedSet[str]':
+    @staticmethod
+    def _normal_forms(word: str) -> 'OrderedSet[str]':
         morph = DummyMorphAnalyzer
         return OrderedSet([morph.parse(word=word)[0].normal_form])
 
@@ -491,7 +486,7 @@ class ProfanityFilter:
         spacy_lemma = spacy_lemma.lower() if spacy_lemma != '-PRON-' else word.lower_
         result.add(spacy_lemma)
         result |= self._stems(language=language, word=word.text)
-        result |= self._normal_forms(language=language, word=word.text)
+        result |= self._normal_forms(word=word.text)
         return result
 
     def _is_dictionary_word(self, language: Language, word: str) -> bool:
