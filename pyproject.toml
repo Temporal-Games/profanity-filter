@@ -2,10 +2,22 @@
 name = "profanity-filter"
 version = "2.0.0"
 description = ""
-authors = ["Aleksey Ivashov <aivashov@temporal-games.com>"]
+authors = ["Roman Inflianskas <infroma@gmail.com>"]
+maintainers = ["Aleksey Ivashov <aivashov@temporal-games.com>"]
 license = "GPL-3.0+"
 readme = "README.md"
 packages = [{include = "profanity_filter"}]
+repository = "https://github.com/Temporal-Games/profanity-filter"
+keywords = ["library", "profanity", "filter", "censor"]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "Topic :: Text Processing :: Filters",
+    "Topic :: Text Processing :: Linguistic",
+    "Topic :: Software Development :: Libraries :: Python Modules"
+]
 
 [tool.poetry.dependencies]
 python = "^3.8"
@@ -15,6 +27,9 @@ more-itertools = "^9.0.0"
 ordered-set = "^4.1.0"
 redis = "^4.3.4"
 
+[tool.poetry.dev-dependencies]
+pytest = "^3.8"
+dill = "^0.3.4"
 
 [build-system]
 requires = ["poetry-core"]
