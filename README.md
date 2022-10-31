@@ -7,7 +7,7 @@
 This library is no longer a priority for me. Feel free to fork it.
 ## Quickstart for team Temporal Games
 ```bash
-poetry install && poetry shell && python -m spacy download en_core_web_sm
+poetry install --without dev && poetry shell && python -m spacy download en_core_web_sm
 ```
 After 
 ```python

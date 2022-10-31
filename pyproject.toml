@@ -25,7 +25,6 @@ spacy = "^3.4.2"
 cached-property = "^1.5.2"
 more-itertools = "^9.0.0"
 ordered-set = "^4.1.0"
-redis = "^4.3.4"
 
 [tool.poetry.dev-dependencies]
 pytest = "^3.8"
