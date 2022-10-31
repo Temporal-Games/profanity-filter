@@ -5,7 +5,21 @@
 
 ## Archived
 This library is no longer a priority for me. Feel free to fork it.
+## Quickstart for team Temporal Games
+```bash
+poetry install && poetry shell && python -m spacy download en_core_web_sm
+```
+After 
+```python
+from tqdm import tqdm
+from profanity_filter import ProfanityFilter
 
+profanity = ProfanityFilter()
+TEST_STATEMENT = "Hey, I like bullshit, fuck, oranges and man's blood dick, cock, cocksucker, turd!"
+
+for i in tqdm(range(1000)):
+   profanity.censor(TEST_STATEMENT)
+```
 ## Table of contents
 <!--ts-->
    * [profanity-filter: A Python library for detecting and filtering profanity](#profanity-filter-a-python-library-for-detecting-and-filtering-profanity)
