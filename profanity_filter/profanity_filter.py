@@ -1,7 +1,7 @@
-import re
 from collections import defaultdict
 from contextlib import suppress, contextmanager
 from copy import deepcopy
+from functools import lru_cache
 from math import floor
 from pathlib import Path
 from typing import Dict, Union, List, Tuple, Set, Collection, ContextManager, Optional
@@ -595,35 +595,21 @@ class ProfanityFilter:
         result.append((language, merged))
         return result
 
-    def _split_by_language(self, text: str) -> TextSplittedByLanguage:
-        languages = OrderedSet(['en_core_web_sm'])
-        tokens = re.split(r'(\W)', text)
-        if len(languages) == 1 or len(tokens) <= 1:
-            # noinspection PyTypeChecker
-            return [(languages[0], text)]
-        else:
-            middle_index = len(tokens) // 2
-            left_text, right_text, = ''.join(tokens[:middle_index]), ''.join(tokens[middle_index:])
-            left = self._split_by_language(text=left_text)
-            right = self._split_by_language(text=right_text)
-            return ProfanityFilter._merge_by_language(left + right)
-
     @staticmethod
     def _replace_token(text: str, old: spacy.tokens.Token, new: str) -> str:
         return text[:old.idx] + new + text[old.idx + len(old.text):]
 
     # noinspection PyProtectedMember
+    @lru_cache(25)
     def _censor(self, text: str) -> Union[str, bool]:
         """:return: text with any profane words censored or bool (True - text has profane words, False otherwise) if
         return_bool=True"""
         result = ''
-        text_parts = self._split_by_language(text=text)
-        for language, text_part in text_parts:
-            result_part = text_part
-            doc = self._parse(language=language, text=text_part)
-            for token in doc:
-                if token._.is_profane:
-                    result_part = self._replace_token(text=result_part, old=token, new=token._.censored)
-            result += result_part
+        result_part = text
+        doc = self._parse(language='en_core_web_sm', text=text)
+        for token in doc:
+            if token._.is_profane:
+                result_part = self._replace_token(text=result_part, old=token, new=token._.censored)
+        result += result_part
 
         return result
